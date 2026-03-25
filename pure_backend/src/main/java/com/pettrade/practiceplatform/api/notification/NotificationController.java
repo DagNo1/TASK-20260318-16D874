@@ -4,6 +4,8 @@ import com.pettrade.practiceplatform.domain.User;
 import com.pettrade.practiceplatform.domain.enumtype.NotificationEventType;
 import com.pettrade.practiceplatform.service.CurrentUserService;
 import com.pettrade.practiceplatform.service.NotificationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,6 +20,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/notifications")
+@Tag(name = "Notifications")
 public class NotificationController {
 
     private final NotificationService notificationService;
@@ -30,6 +33,7 @@ public class NotificationController {
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "List notifications")
     public ResponseEntity<List<NotificationDeliveryView>> listMyNotifications(
             @RequestParam(defaultValue = "false") boolean unreadOnly
     ) {
@@ -39,6 +43,7 @@ public class NotificationController {
 
     @PostMapping("/read")
     @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Mark notification as read")
     public ResponseEntity<NotificationDeliveryView> markRead(@Valid @RequestBody NotificationReadRequest request) {
         User user = currentUserService.currentUser();
         return ResponseEntity.ok(notificationService.markRead(request.deliveryId(), user));
@@ -46,6 +51,7 @@ public class NotificationController {
 
     @GetMapping("/subscriptions")
     @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "List notification subscriptions")
     public ResponseEntity<List<NotificationSubscriptionView>> listSubscriptions() {
         User user = currentUserService.currentUser();
         return ResponseEntity.ok(notificationService.listAllSubscriptions(user));
@@ -53,6 +59,7 @@ public class NotificationController {
 
     @PostMapping("/subscriptions")
     @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Upsert notification subscription")
     public ResponseEntity<NotificationSubscriptionView> upsertSubscription(
             @Valid @RequestBody NotificationSubscriptionRequest request
     ) {

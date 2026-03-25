@@ -3,6 +3,8 @@ package com.pettrade.practiceplatform.api.achievement;
 import com.pettrade.practiceplatform.domain.User;
 import com.pettrade.practiceplatform.service.CurrentUserService;
 import com.pettrade.practiceplatform.service.PracticeAchievementService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -21,6 +23,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/practice-achievements")
+@Tag(name = "Practice Achievements")
 public class PracticeAchievementController {
 
     private final PracticeAchievementService service;
@@ -33,6 +36,7 @@ public class PracticeAchievementController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER','REVIEWER')")
+    @Operation(summary = "List achievements")
     public ResponseEntity<List<AchievementView>> listAchievements() {
         User user = currentUserService.currentUser();
         return ResponseEntity.ok(service.listAchievements(user));
@@ -40,6 +44,7 @@ public class PracticeAchievementController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER')")
+    @Operation(summary = "Create achievement")
     public ResponseEntity<AchievementView> create(@Valid @RequestBody AchievementUpsertRequest request) {
         User user = currentUserService.currentUser();
         return ResponseEntity.ok(service.createAchievement(request, user));
@@ -47,6 +52,7 @@ public class PracticeAchievementController {
 
     @PutMapping("/{achievementId}")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER')")
+    @Operation(summary = "Update achievement (strict version increment)")
     public ResponseEntity<AchievementView> update(
             @PathVariable Long achievementId,
             @Valid @RequestBody AchievementUpsertRequest request
@@ -57,6 +63,7 @@ public class PracticeAchievementController {
 
     @PostMapping("/{achievementId}/attachments")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER')")
+    @Operation(summary = "Add versioned attachment")
     public ResponseEntity<AchievementAttachmentView> addAttachment(
             @PathVariable Long achievementId,
             @Valid @RequestBody AchievementAttachmentRequest request
@@ -67,6 +74,7 @@ public class PracticeAchievementController {
 
     @GetMapping("/{achievementId}/attachments")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER','REVIEWER')")
+    @Operation(summary = "List achievement attachments")
     public ResponseEntity<List<AchievementAttachmentView>> listAttachments(@PathVariable Long achievementId) {
         User user = currentUserService.currentUser();
         return ResponseEntity.ok(service.listAttachments(achievementId, user));
@@ -74,6 +82,7 @@ public class PracticeAchievementController {
 
     @PostMapping("/{achievementId}/assessment-form")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER')")
+    @Operation(summary = "Upsert assessment form")
     public ResponseEntity<AssessmentFormView> upsertAssessment(
             @PathVariable Long achievementId,
             @Valid @RequestBody AssessmentFormRequest request
@@ -84,6 +93,7 @@ public class PracticeAchievementController {
 
     @GetMapping("/{achievementId}/export/completion-certificate")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER','REVIEWER')")
+    @Operation(summary = "Export completion certificate PDF")
     public ResponseEntity<byte[]> exportCertificate(@PathVariable Long achievementId) {
         User user = currentUserService.currentUser();
         byte[] bytes = service.exportCompletionCertificatePdf(achievementId, user);
@@ -95,6 +105,7 @@ public class PracticeAchievementController {
 
     @GetMapping("/{achievementId}/export/assessment-form")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER','REVIEWER')")
+    @Operation(summary = "Export assessment form XLSX")
     public ResponseEntity<byte[]> exportAssessment(@PathVariable Long achievementId) {
         User user = currentUserService.currentUser();
         byte[] bytes = service.exportAssessmentFormXlsx(achievementId, user);

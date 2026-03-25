@@ -3,6 +3,8 @@ package com.pettrade.practiceplatform.api.inventory;
 import com.pettrade.practiceplatform.domain.User;
 import com.pettrade.practiceplatform.service.CurrentUserService;
 import com.pettrade.practiceplatform.service.InventoryService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +19,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/merchant/inventory")
+@Tag(name = "Inventory")
 public class InventoryController {
 
     private final InventoryService inventoryService;
@@ -29,6 +32,7 @@ public class InventoryController {
 
     @PostMapping("/items")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR')")
+    @Operation(summary = "Create or update inventory item")
     public ResponseEntity<InventoryItemView> upsertItem(@Valid @RequestBody InventoryItemUpsertRequest request) {
         User merchant = currentUserService.currentUser();
         return ResponseEntity.ok(inventoryService.upsertItem(request, merchant));
@@ -36,6 +40,7 @@ public class InventoryController {
 
     @PostMapping("/items/{itemId}/stock")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR')")
+    @Operation(summary = "Adjust inventory stock")
     public ResponseEntity<InventoryItemView> adjustStock(
             @PathVariable Long itemId,
             @Valid @RequestBody InventoryStockAdjustRequest request
@@ -46,6 +51,7 @@ public class InventoryController {
 
     @GetMapping("/alerts")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR')")
+    @Operation(summary = "List inventory alert history")
     public ResponseEntity<List<InventoryAlertView>> listAlerts() {
         User merchant = currentUserService.currentUser();
         return ResponseEntity.ok(inventoryService.listAlerts(merchant));
@@ -53,6 +59,7 @@ public class InventoryController {
 
     @GetMapping("/logs")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR')")
+    @Operation(summary = "List inventory logs")
     public ResponseEntity<List<InventoryLogView>> listLogs() {
         User merchant = currentUserService.currentUser();
         return ResponseEntity.ok(inventoryService.listLogs(merchant));
