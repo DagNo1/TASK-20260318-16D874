@@ -60,6 +60,12 @@ public class PracticeStep {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    @Column(name = "active_elapsed_seconds", nullable = false)
+    private Long activeElapsedSeconds = 0L;
+
+    @Column(name = "active_since")
+    private LocalDateTime activeSince;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "step_technique_cards",
@@ -126,5 +132,25 @@ public class PracticeStep {
 
     public void setCompletedAt(LocalDateTime completedAt) {
         this.completedAt = completedAt;
+    }
+
+    public Set<TechniqueCard> getTechniqueCards() {
+        return techniqueCards;
+    }
+
+    public Long getActiveElapsedSeconds() {
+        return activeElapsedSeconds;
+    }
+
+    public void setActiveElapsedSeconds(Long activeElapsedSeconds) {
+        this.activeElapsedSeconds = activeElapsedSeconds;
+    }
+
+    public LocalDateTime getActiveSince() {
+        return activeSince;
+    }
+
+    public void setActiveSince(LocalDateTime activeSince) {
+        this.activeSince = activeSince;
     }
 }

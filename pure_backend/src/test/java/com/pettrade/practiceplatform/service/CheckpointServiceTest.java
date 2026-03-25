@@ -46,6 +46,8 @@ class CheckpointServiceTest {
     private StepTimerRepository timerRepository;
     @Mock
     private SessionCheckpointRepository checkpointRepository;
+    @Mock
+    private ReminderSchedulingService reminderSchedulingService;
 
     private CheckpointService checkpointService;
 
@@ -59,6 +61,7 @@ class CheckpointServiceTest {
                 checkpointRepository,
                 new ObjectMapper(),
                 new TimerStateMachine(),
+                reminderSchedulingService,
                 clock
         );
     }

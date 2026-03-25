@@ -6,11 +6,14 @@ import com.pettrade.practiceplatform.api.practice.StepCompleteResponse;
 import com.pettrade.practiceplatform.api.practice.TimerStateResponse;
 import com.pettrade.practiceplatform.domain.PracticeSession;
 import com.pettrade.practiceplatform.domain.PracticeStep;
+import com.pettrade.practiceplatform.domain.StepNodeReminder;
 import com.pettrade.practiceplatform.domain.StepReminder;
 import com.pettrade.practiceplatform.domain.StepTimer;
 import com.pettrade.practiceplatform.domain.TechniqueCard;
+import com.pettrade.practiceplatform.domain.TechniqueTag;
 import com.pettrade.practiceplatform.domain.User;
 import com.pettrade.practiceplatform.domain.enumtype.CheckpointType;
+import com.pettrade.practiceplatform.domain.enumtype.NotificationEventType;
 import com.pettrade.practiceplatform.domain.enumtype.SessionStatus;
 import com.pettrade.practiceplatform.domain.enumtype.StepStatus;
 import com.pettrade.practiceplatform.domain.enumtype.TimerAction;
@@ -18,6 +21,7 @@ import com.pettrade.practiceplatform.domain.enumtype.TimerState;
 import com.pettrade.practiceplatform.exception.NotFoundException;
 import com.pettrade.practiceplatform.repository.PracticeSessionRepository;
 import com.pettrade.practiceplatform.repository.PracticeStepRepository;
+import com.pettrade.practiceplatform.repository.StepNodeReminderRepository;
 import com.pettrade.practiceplatform.repository.StepReminderRepository;
 import com.pettrade.practiceplatform.repository.StepTimerRepository;
 import com.pettrade.practiceplatform.repository.TechniqueCardRepository;
@@ -40,29 +44,38 @@ public class PracticeSessionService {
     private final PracticeSessionRepository sessionRepository;
     private final PracticeStepRepository stepRepository;
     private final StepTimerRepository timerRepository;
-    private final StepReminderRepository reminderRepository;
+    private final StepNodeReminderRepository nodeReminderRepository;
+    private final StepReminderRepository stepReminderRepository;
     private final TechniqueCardRepository techniqueCardRepository;
     private final TimerStateMachine timerStateMachine;
     private final CheckpointService checkpointService;
+    private final ReminderSchedulingService reminderSchedulingService;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     public PracticeSessionService(
             PracticeSessionRepository sessionRepository,
             PracticeStepRepository stepRepository,
             StepTimerRepository timerRepository,
-            StepReminderRepository reminderRepository,
+            StepNodeReminderRepository nodeReminderRepository,
+            StepReminderRepository stepReminderRepository,
             TechniqueCardRepository techniqueCardRepository,
             TimerStateMachine timerStateMachine,
             CheckpointService checkpointService,
+            ReminderSchedulingService reminderSchedulingService,
+            NotificationService notificationService,
             Clock clock
     ) {
         this.sessionRepository = sessionRepository;
         this.stepRepository = stepRepository;
         this.timerRepository = timerRepository;
-        this.reminderRepository = reminderRepository;
+        this.nodeReminderRepository = nodeReminderRepository;
+        this.stepReminderRepository = stepReminderRepository;
         this.techniqueCardRepository = techniqueCardRepository;
         this.timerStateMachine = timerStateMachine;
         this.checkpointService = checkpointService;
+        this.reminderSchedulingService = reminderSchedulingService;
+        this.notificationService = notificationService;
         this.clock = clock;
     }
 
@@ -99,6 +112,17 @@ public class PracticeSessionService {
                         .collect(Collectors.toCollection(HashSet::new));
                 step.getTechniqueCards().addAll(cards);
             }
+
+            if (input.nodeReminders() != null) {
+                for (CreatePracticeSessionRequest.NodeReminderInput nodeInput : input.nodeReminders()) {
+                    StepNodeReminder nodeReminder = new StepNodeReminder();
+                    nodeReminder.setStep(step);
+                    nodeReminder.setOffsetSecondsAfterStepStart(nodeInput.offsetSecondsAfterStepStart());
+                    nodeReminder.setMessage(nodeInput.message());
+                    nodeReminder.setTriggered(false);
+                    nodeReminderRepository.save(nodeReminder);
+                }
+            }
             createdSteps.add(step);
 
             for (CreatePracticeSessionRequest.TimerInput timerInput : input.timers()) {
@@ -117,7 +141,7 @@ public class PracticeSessionService {
                         reminder.setOffsetSecondsBeforeDue(reminderInput.offsetSecondsBeforeDue());
                         reminder.setMessage(reminderInput.message());
                         reminder.setTriggered(false);
-                        reminderRepository.save(reminder);
+                        this.stepReminderRepository.save(reminder);
                     }
                 }
             }
@@ -141,7 +165,8 @@ public class PracticeSessionService {
             timerStateMachine.resume(timer, now);
         }
         timerRepository.save(timer);
-        updateReminderSchedule(timer);
+        reminderSchedulingService.rescheduleTimerReminders(timer, now);
+        reminderSchedulingService.updateStepActivityAndNodeReminders(timer.getStep(), now);
         checkpointService.autoSaveForSession(session);
         return toTimerResponse(timer);
     }
@@ -164,8 +189,10 @@ public class PracticeSessionService {
             timer.setCompletedAt(now);
             timer.setDueAt(now);
             timerRepository.save(timer);
-            updateReminderSchedule(timer);
+            reminderSchedulingService.rescheduleTimerReminders(timer, now);
         }
+
+        reminderSchedulingService.updateStepActivityAndNodeReminders(step, now);
 
         List<PracticeStep> allSteps = stepRepository.findBySessionIdOrderByStepOrderAsc(sessionId);
         boolean allDone = allSteps.stream().allMatch(s -> s.getStatus() == StepStatus.COMPLETED);
@@ -175,6 +202,15 @@ public class PracticeSessionService {
         }
 
         checkpointService.saveCheckpoint(sessionId, actor, CheckpointType.STEP_CHANGE);
+        notificationService.publish(
+                NotificationEventType.PRACTICE_STEP_COMPLETED,
+                Map.of(
+                        "sessionId", sessionId,
+                        "stepId", step.getId(),
+                        "stepName", step.getName()
+                ),
+                actor
+        );
         return new StepCompleteResponse(step.getId(), step.getStatus(), step.getCompletedAt());
     }
 
@@ -196,32 +232,10 @@ public class PracticeSessionService {
         if (changed) {
             timerRepository.saveAll(runningTimers);
         }
+        reminderSchedulingService.rescheduleForSession(sessionId, now);
         List<PracticeStep> steps = stepRepository.findBySessionIdOrderByStepOrderAsc(sessionId);
         List<StepTimer> timers = timerRepository.findByStepSessionId(sessionId);
         return toSessionResponse(session, steps, timers);
-    }
-
-    private void updateReminderSchedule(StepTimer timer) {
-        List<StepReminder> reminders = reminderRepository.findByTimerId(timer.getId());
-        LocalDateTime now = LocalDateTime.now(clock);
-        for (StepReminder reminder : reminders) {
-            if (timer.getState() == TimerState.RUNNING && timer.getDueAt() != null) {
-                LocalDateTime remindAt = timer.getDueAt().minusSeconds(reminder.getOffsetSecondsBeforeDue());
-                reminder.setRemindAt(remindAt);
-                reminder.setTriggered(false);
-                reminder.setTriggeredAt(null);
-                if (remindAt.isBefore(now)) {
-                    reminder.setRemindAt(now);
-                }
-            } else {
-                reminder.setRemindAt(null);
-                if (timer.getState() == TimerState.COMPLETED) {
-                    reminder.setTriggered(true);
-                    reminder.setTriggeredAt(now);
-                }
-            }
-        }
-        reminderRepository.saveAll(reminders);
     }
 
     private PracticeSession loadOwnedSessionForUpdate(Long sessionId, User actor) {
@@ -241,16 +255,25 @@ public class PracticeSessionService {
                     .stream()
                     .map(this::toTimerView)
                     .toList();
+            List<PracticeSessionResponse.TechniqueCardView> cardViews = step.getTechniqueCards().stream()
+                    .map(this::toTechniqueCardView)
+                    .toList();
             return new PracticeSessionResponse.StepView(
                     step.getId(),
                     step.getStepOrder(),
                     step.getName(),
                     step.getInstruction(),
                     step.getStatus(),
+                    cardViews,
                     timerViews
             );
         }).toList();
         return new PracticeSessionResponse(session.getId(), session.getTitle(), session.getStatus(), stepViews);
+    }
+
+    private PracticeSessionResponse.TechniqueCardView toTechniqueCardView(TechniqueCard card) {
+        List<String> tags = card.getTags().stream().map(TechniqueTag::getName).sorted().toList();
+        return new PracticeSessionResponse.TechniqueCardView(card.getId(), card.getTitle(), card.getContent(), tags);
     }
 
     private PracticeSessionResponse.TimerView toTimerView(StepTimer timer) {

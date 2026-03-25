@@ -17,6 +17,7 @@ public record CreatePracticeSessionRequest(
             String instruction,
             Long estimatedSeconds,
             List<Long> techniqueCardIds,
+            List<@Valid NodeReminderInput> nodeReminders,
             @NotEmpty(message = "timers are required") List<@Valid TimerInput> timers
     ) {
     }
@@ -30,6 +31,12 @@ public record CreatePracticeSessionRequest(
 
     public record ReminderInput(
             @NotNull(message = "offsetSecondsBeforeDue is required") @Positive(message = "offsetSecondsBeforeDue must be positive") Long offsetSecondsBeforeDue,
+            @NotBlank(message = "message is required") String message
+    ) {
+    }
+
+    public record NodeReminderInput(
+            @NotNull(message = "offsetSecondsAfterStepStart is required") @Positive(message = "offsetSecondsAfterStepStart must be positive") Long offsetSecondsAfterStepStart,
             @NotBlank(message = "message is required") String message
     ) {
     }

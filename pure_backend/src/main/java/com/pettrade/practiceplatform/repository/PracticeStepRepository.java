@@ -8,4 +8,5 @@ import java.util.List;
 public interface PracticeStepRepository extends JpaRepository<PracticeStep, Long> {
     List<PracticeStep> findBySessionIdOrderByStepOrderAsc(Long sessionId);
     java.util.Optional<PracticeStep> findByIdAndSessionId(Long stepId, Long sessionId);
+    List<PracticeStep> findBySessionIdAndStatus(Long sessionId, com.pettrade.practiceplatform.domain.enumtype.StepStatus status);
 }

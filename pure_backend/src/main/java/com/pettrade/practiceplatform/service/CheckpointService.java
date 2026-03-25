@@ -33,6 +33,7 @@ public class CheckpointService {
     private final SessionCheckpointRepository checkpointRepository;
     private final ObjectMapper objectMapper;
     private final TimerStateMachine timerStateMachine;
+    private final ReminderSchedulingService reminderSchedulingService;
     private final Clock clock;
 
     public CheckpointService(
@@ -42,6 +43,7 @@ public class CheckpointService {
             SessionCheckpointRepository checkpointRepository,
             ObjectMapper objectMapper,
             TimerStateMachine timerStateMachine,
+            ReminderSchedulingService reminderSchedulingService,
             Clock clock
     ) {
         this.sessionRepository = sessionRepository;
@@ -50,6 +52,7 @@ public class CheckpointService {
         this.checkpointRepository = checkpointRepository;
         this.objectMapper = objectMapper;
         this.timerStateMachine = timerStateMachine;
+        this.reminderSchedulingService = reminderSchedulingService;
         this.clock = clock;
     }
 
@@ -63,7 +66,9 @@ public class CheckpointService {
     @Transactional
     public CheckpointResponse loadLatestCheckpoint(Long sessionId, User actor) {
         PracticeSession session = loadOwnedSessionForUpdate(sessionId, actor);
+        LocalDateTime now = LocalDateTime.now(clock);
         boolean changed = reconcileRunningTimers(sessionId);
+        reminderSchedulingService.rescheduleForSession(sessionId, now);
         if (changed) {
             SessionCheckpoint fresh = persistSnapshot(session, CheckpointType.AUTO);
             return toResponse(fresh);

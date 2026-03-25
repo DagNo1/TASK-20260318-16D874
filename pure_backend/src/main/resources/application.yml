@@ -29,9 +29,12 @@ app:
   jwt:
     secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-change-me-change-me}
     access-token-minutes: 120
+  inventory:
+    default-threshold: 10
   scheduler:
     reminder-poll-ms: 1000
     checkpoint-auto-save-ms: 30000
+    report-timezone: ${REPORT_TIMEZONE:UTC}
 
 logging:
   level:

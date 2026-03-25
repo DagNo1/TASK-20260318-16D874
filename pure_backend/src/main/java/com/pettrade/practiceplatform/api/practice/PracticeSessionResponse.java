@@ -19,7 +19,16 @@ public record PracticeSessionResponse(
             String name,
             String instruction,
             StepStatus status,
+            List<TechniqueCardView> techniqueCards,
             List<TimerView> timers
+    ) {
+    }
+
+    public record TechniqueCardView(
+            Long cardId,
+            String title,
+            String content,
+            List<String> tags
     ) {
     }
 

@@ -8,6 +8,7 @@ import com.pettrade.practiceplatform.service.checkpoint.CheckpointTypeResolver;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,17 +35,20 @@ public class PracticeSessionController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER')")
     public ResponseEntity<PracticeSessionResponse> createSession(@Valid @RequestBody CreatePracticeSessionRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(practiceSessionService.createSession(request, currentUserService.currentUser()));
     }
 
     @GetMapping("/{sessionId}")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER','REVIEWER')")
     public ResponseEntity<PracticeSessionResponse> getSession(@PathVariable Long sessionId) {
         return ResponseEntity.ok(practiceSessionService.getSession(sessionId, currentUserService.currentUser()));
     }
 
     @PostMapping("/{sessionId}/timers/{timerId}/command")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER')")
     public ResponseEntity<TimerStateResponse> commandTimer(
             @PathVariable Long sessionId,
             @PathVariable Long timerId,
@@ -55,11 +59,13 @@ public class PracticeSessionController {
     }
 
     @PostMapping("/{sessionId}/steps/{stepId}/complete")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER')")
     public ResponseEntity<StepCompleteResponse> completeStep(@PathVariable Long sessionId, @PathVariable Long stepId) {
         return ResponseEntity.ok(practiceSessionService.completeStep(sessionId, stepId, currentUserService.currentUser()));
     }
 
     @PostMapping("/{sessionId}/checkpoints")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER')")
     public ResponseEntity<CheckpointResponse> saveCheckpoint(
             @PathVariable Long sessionId,
             @RequestBody(required = false) CheckpointSaveRequest request
@@ -75,6 +81,7 @@ public class PracticeSessionController {
     }
 
     @GetMapping("/{sessionId}/checkpoints/latest")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','MERCHANT_OPERATOR','REGULAR_BUYER','REVIEWER')")
     public ResponseEntity<CheckpointResponse> loadLatestCheckpoint(@PathVariable Long sessionId) {
         return ResponseEntity.ok(checkpointService.loadLatestCheckpoint(sessionId, currentUserService.currentUser()));
     }
