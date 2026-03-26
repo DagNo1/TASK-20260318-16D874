@@ -3,6 +3,7 @@ package com.pettrade.practiceplatform.service;
 import com.pettrade.practiceplatform.domain.InventoryAlert;
 import com.pettrade.practiceplatform.domain.InventoryItem;
 import com.pettrade.practiceplatform.domain.InventoryLog;
+import com.pettrade.practiceplatform.domain.Role;
 import com.pettrade.practiceplatform.domain.ReportAggregate;
 import com.pettrade.practiceplatform.domain.ReportGeneration;
 import com.pettrade.practiceplatform.domain.User;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -26,9 +28,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,6 +50,10 @@ class ReportingServiceTest {
     private InventoryLogRepository inventoryLogRepository;
     @Mock
     private InventoryAlertRepository inventoryAlertRepository;
+    @Mock
+    private NotificationService notificationService;
+    @Mock
+    private CurrentUserService currentUserService;
 
     private ReportingService service;
 
@@ -58,6 +66,8 @@ class ReportingServiceTest {
                 aggregateRepository,
                 inventoryLogRepository,
                 inventoryAlertRepository,
+                notificationService,
+                currentUserService,
                 clock,
                 "UTC"
         );
@@ -108,6 +118,36 @@ class ReportingServiceTest {
         assertEquals(new BigDecimal("2"), org2Alerts.stripTrailingZeros());
     }
 
+    @Test
+    void nonAdminCannotQueryAnotherOrganizationScope() {
+        when(currentUserService.currentUser()).thenReturn(user(7L, "ROLE_MERCHANT_OPERATOR"));
+
+        assertThrows(AccessDeniedException.class, () -> service.queryAggregates(
+                new com.pettrade.practiceplatform.api.reporting.ReportQueryRequest(
+                        "INVENTORY_CHANGE_EVENTS",
+                        9L,
+                        null,
+                        LocalDateTime.of(2026, 3, 25, 0, 0),
+                        LocalDateTime.of(2026, 3, 26, 0, 0)
+                )
+        ));
+    }
+
+    @Test
+    void nonAdminCannotExportAnotherOrganizationScope() {
+        when(currentUserService.currentUser()).thenReturn(user(7L, "ROLE_MERCHANT_OPERATOR"));
+
+        assertThrows(AccessDeniedException.class, () -> service.exportXlsx(
+                new com.pettrade.practiceplatform.api.reporting.ReportExportRequest(
+                        "INVENTORY_CHANGE_EVENTS",
+                        9L,
+                        null,
+                        LocalDateTime.of(2026, 3, 25, 0, 0),
+                        LocalDateTime.of(2026, 3, 26, 0, 0)
+                )
+        ));
+    }
+
     private BigDecimal value(List<ReportAggregate> list, String indicator, Long orgId) {
         return list.stream()
                 .filter(a -> indicator.equals(a.getIndicatorCode()) && orgId.equals(a.getOrganizationUserId()))
@@ -139,9 +179,17 @@ class ReportingServiceTest {
     }
 
     private User user(Long id) {
+        return user(id, "ROLE_MERCHANT_OPERATOR");
+    }
+
+    private User user(Long id, String roleName) {
         User u = new User();
         ReflectionTestUtils.setField(u, "id", id);
         u.setUsername("u" + id);
+        Role role = new Role();
+        ReflectionTestUtils.setField(role, "id", id + 1000);
+        ReflectionTestUtils.setField(role, "name", roleName);
+        u.getRoles().addAll(Set.of(role));
         return u;
     }
 }

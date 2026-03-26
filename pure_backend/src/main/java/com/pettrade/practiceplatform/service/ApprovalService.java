@@ -12,6 +12,7 @@ import com.pettrade.practiceplatform.domain.User;
 import com.pettrade.practiceplatform.domain.enumtype.ApprovalDecisionType;
 import com.pettrade.practiceplatform.domain.enumtype.ApprovalRequestStatus;
 import com.pettrade.practiceplatform.domain.enumtype.ApprovalRequestType;
+import com.pettrade.practiceplatform.domain.enumtype.NotificationEventType;
 import com.pettrade.practiceplatform.exception.BusinessRuleException;
 import com.pettrade.practiceplatform.exception.NotFoundException;
 import com.pettrade.practiceplatform.repository.ApprovalDecisionRepository;
@@ -31,6 +32,7 @@ public class ApprovalService {
     private final ApprovalRequestRepository requestRepository;
     private final ApprovalDecisionRepository decisionRepository;
     private final AuditLogRepository auditLogRepository;
+    private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -38,12 +40,14 @@ public class ApprovalService {
             ApprovalRequestRepository requestRepository,
             ApprovalDecisionRepository decisionRepository,
             AuditLogRepository auditLogRepository,
+            NotificationService notificationService,
             ObjectMapper objectMapper,
             Clock clock
     ) {
         this.requestRepository = requestRepository;
         this.decisionRepository = decisionRepository;
         this.auditLogRepository = auditLogRepository;
+        this.notificationService = notificationService;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -94,6 +98,12 @@ public class ApprovalService {
             request.setDecidedAt(now);
             requestRepository.save(request);
             appendAudit("APPROVAL_REQUEST_REJECTED", actor, request, Map.of("requestId", request.getId()));
+            notificationService.publishToRecipients(
+                    NotificationEventType.REVIEW_RESULT_PUBLISHED,
+                    Map.of("approvalRequestId", request.getId(), "result", "REJECTED"),
+                    actor,
+                    List.of(request.getRequestedByUser())
+            );
             return toView(request);
         }
 
@@ -103,6 +113,12 @@ public class ApprovalService {
             request.setDecidedAt(now);
             requestRepository.save(request);
             appendAudit("APPROVAL_REQUEST_APPROVED", actor, request, Map.of("requestId", request.getId()));
+            notificationService.publishToRecipients(
+                    NotificationEventType.REVIEW_RESULT_PUBLISHED,
+                    Map.of("approvalRequestId", request.getId(), "result", "APPROVED"),
+                    actor,
+                    List.of(request.getRequestedByUser())
+            );
         }
 
         return toView(request);

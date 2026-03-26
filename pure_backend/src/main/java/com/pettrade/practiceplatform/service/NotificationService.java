@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -114,6 +115,37 @@ public class NotificationService {
                         .map(s -> new NotificationSubscriptionView(s.getEventType().name(), s.isEnabled()))
                         .orElseGet(() -> new NotificationSubscriptionView(type.name(), false)))
                 .toList();
+    }
+
+    @Transactional
+    public void publishOrderStatusUpdate(Long orderId, String status, User actor, List<User> recipients) {
+        // TODO: Replace with dedicated order module event publisher when order domain is introduced.
+        publishToRecipients(
+                NotificationEventType.ORDER_STATUS_UPDATED,
+                Map.of("orderId", orderId, "status", status),
+                actor,
+                recipients
+        );
+    }
+
+    @Transactional
+    public void publishToRecipients(NotificationEventType type, Map<String, Object> payload, User actor, List<User> recipients) {
+        NotificationEvent event = new NotificationEvent();
+        event.setEventType(type);
+        event.setPayloadJson(toJson(payload));
+        event.setActorUser(actor);
+        NotificationEvent savedEvent = eventRepository.save(event);
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        List<NotificationDelivery> deliveries = new ArrayList<>();
+        for (User recipient : recipients) {
+            NotificationDelivery d = new NotificationDelivery();
+            d.setEvent(savedEvent);
+            d.setRecipient(recipient);
+            d.setDeliveredAt(now);
+            deliveries.add(d);
+        }
+        deliveryRepository.saveAll(deliveries);
     }
 
     private NotificationDeliveryView toView(NotificationDelivery delivery) {

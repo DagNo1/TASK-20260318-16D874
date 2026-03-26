@@ -4,20 +4,25 @@ import com.pettrade.practiceplatform.api.reporting.ReportAggregateView;
 import com.pettrade.practiceplatform.api.reporting.ReportExportRequest;
 import com.pettrade.practiceplatform.api.reporting.ReportIndicatorView;
 import com.pettrade.practiceplatform.api.reporting.ReportQueryRequest;
+import com.pettrade.practiceplatform.domain.Role;
 import com.pettrade.practiceplatform.domain.InventoryAlert;
 import com.pettrade.practiceplatform.domain.InventoryLog;
 import com.pettrade.practiceplatform.domain.ReportAggregate;
 import com.pettrade.practiceplatform.domain.ReportGeneration;
 import com.pettrade.practiceplatform.domain.ReportIndicatorDefinition;
+import com.pettrade.practiceplatform.domain.User;
+import com.pettrade.practiceplatform.domain.enumtype.NotificationEventType;
 import com.pettrade.practiceplatform.repository.InventoryAlertRepository;
 import com.pettrade.practiceplatform.repository.InventoryLogRepository;
 import com.pettrade.practiceplatform.repository.ReportAggregateRepository;
 import com.pettrade.practiceplatform.repository.ReportGenerationRepository;
 import com.pettrade.practiceplatform.repository.ReportIndicatorDefinitionRepository;
+import com.pettrade.practiceplatform.security.Roles;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +47,8 @@ public class ReportingService {
     private final ReportAggregateRepository aggregateRepository;
     private final InventoryLogRepository inventoryLogRepository;
     private final InventoryAlertRepository inventoryAlertRepository;
+    private final NotificationService notificationService;
+    private final CurrentUserService currentUserService;
     private final Clock clock;
     private final String reportTimezone;
 
@@ -51,6 +58,8 @@ public class ReportingService {
             ReportAggregateRepository aggregateRepository,
             InventoryLogRepository inventoryLogRepository,
             InventoryAlertRepository inventoryAlertRepository,
+            NotificationService notificationService,
+            CurrentUserService currentUserService,
             Clock clock,
             @Value("${app.scheduler.report-timezone:UTC}") String reportTimezone
     ) {
@@ -59,6 +68,8 @@ public class ReportingService {
         this.aggregateRepository = aggregateRepository;
         this.inventoryLogRepository = inventoryLogRepository;
         this.inventoryAlertRepository = inventoryAlertRepository;
+        this.notificationService = notificationService;
+        this.currentUserService = currentUserService;
         this.clock = clock;
         this.reportTimezone = reportTimezone;
     }
@@ -72,11 +83,12 @@ public class ReportingService {
 
     @Transactional(readOnly = true)
     public List<ReportAggregateView> queryAggregates(ReportQueryRequest request) {
+        Long scopedOrganizationUserId = resolveScopedOrganizationUserId(request.organizationUserId());
         if (request.businessDimension() == null || request.businessDimension().isBlank()) {
             return aggregateRepository
                     .findByIndicatorCodeAndOrganizationUserIdAndPeriodStartGreaterThanEqualAndPeriodEndLessThanEqual(
                             request.indicatorCode().trim().toUpperCase(),
-                            request.organizationUserId(),
+                            scopedOrganizationUserId,
                             request.periodStart(),
                             request.periodEnd()
                     )
@@ -87,7 +99,7 @@ public class ReportingService {
         return aggregateRepository
                 .findByIndicatorCodeAndOrganizationUserIdAndBusinessDimensionAndPeriodStartGreaterThanEqualAndPeriodEndLessThanEqual(
                         request.indicatorCode().trim().toUpperCase(),
-                        request.organizationUserId(),
+                        scopedOrganizationUserId,
                         request.businessDimension().trim().toUpperCase(),
                         request.periodStart(),
                         request.periodEnd()
@@ -99,12 +111,13 @@ public class ReportingService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> drillDown(ReportQueryRequest request) {
+        Long scopedOrganizationUserId = resolveScopedOrganizationUserId(request.organizationUserId());
         String indicator = request.indicatorCode().trim().toUpperCase();
         if ("LOW_STOCK_ALERT_EVENTS".equals(indicator)) {
             List<InventoryAlert> alerts = inventoryAlertRepository
                     .findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(request.periodStart(), request.periodEnd());
             return alerts.stream()
-                    .filter(a -> a.getItem().getMerchantUser().getId().equals(request.organizationUserId()))
+                    .filter(a -> a.getItem().getMerchantUser().getId().equals(scopedOrganizationUserId))
                     .map(a -> Map.<String, Object>of(
                             "alertId", a.getId(),
                             "sku", a.getItem().getSku(),
@@ -117,7 +130,7 @@ public class ReportingService {
         List<InventoryLog> logs = inventoryLogRepository
                 .findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(request.periodStart(), request.periodEnd());
         return logs.stream()
-                .filter(l -> l.getItem().getMerchantUser().getId().equals(request.organizationUserId()))
+                .filter(l -> l.getItem().getMerchantUser().getId().equals(scopedOrganizationUserId))
                 .map(l -> Map.<String, Object>of(
                         "logId", l.getId(),
                         "sku", l.getItem().getSku(),
@@ -131,6 +144,7 @@ public class ReportingService {
 
     @Transactional(readOnly = true)
     public byte[] exportXlsx(ReportExportRequest request) {
+        User actor = currentUserService.currentUser();
         ReportQueryRequest query = new ReportQueryRequest(
                 request.indicatorCode(),
                 request.organizationUserId(),
@@ -164,6 +178,16 @@ public class ReportingService {
             }
 
             workbook.write(out);
+            notificationService.publishToRecipients(
+                    NotificationEventType.REPORT_HANDLING_UPDATED,
+                    Map.of(
+                            "action", "EXPORT_XLSX",
+                            "indicatorCode", request.indicatorCode(),
+                            "organizationUserId", request.organizationUserId()
+                    ),
+                    actor,
+                    List.of(actor)
+            );
             return out.toByteArray();
         } catch (IOException e) {
             throw new IllegalStateException("Failed to export report xlsx", e);
@@ -268,5 +292,19 @@ public class ReportingService {
                 a.getPeriodEnd(),
                 a.getAggregatedValue()
         );
+    }
+
+    private Long resolveScopedOrganizationUserId(Long requestedOrganizationUserId) {
+        User user = currentUserService.currentUser();
+        boolean isPlatformAdmin = user.getRoles().stream()
+                .map(Role::getName)
+                .anyMatch(role -> role.equals("ROLE_" + Roles.PLATFORM_ADMIN));
+        if (isPlatformAdmin) {
+            return requestedOrganizationUserId;
+        }
+        if (!user.getId().equals(requestedOrganizationUserId)) {
+            throw new AccessDeniedException("Access denied for requested organization scope");
+        }
+        return requestedOrganizationUserId;
     }
 }

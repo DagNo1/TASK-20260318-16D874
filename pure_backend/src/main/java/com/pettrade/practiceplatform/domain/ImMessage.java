@@ -66,6 +66,9 @@ public class ImMessage {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "archived_at")
+    private LocalDateTime archivedAt;
+
     public Long getId() {
         return id;
     }
@@ -144,5 +147,13 @@ public class ImMessage {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public LocalDateTime getArchivedAt() {
+        return archivedAt;
+    }
+
+    public void setArchivedAt(LocalDateTime archivedAt) {
+        this.archivedAt = archivedAt;
     }
 }

@@ -3,6 +3,8 @@ CREATE TABLE users (
     username VARCHAR(120) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    failed_login_attempts INT NOT NULL DEFAULT 0,
+    locked_until DATETIME(6),
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 );
 
@@ -528,3 +530,83 @@ WHERE u.username = 'reviewer'
       FROM user_roles ur
       WHERE ur.user_id = u.id AND ur.role_id = r.id
   );
+
+CREATE TABLE brands (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(120) NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT uq_brand_name UNIQUE (name)
+);
+
+CREATE TABLE categories (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(120) NOT NULL,
+    parent_id BIGINT,
+    depth INT NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT fk_category_parent FOREIGN KEY (parent_id) REFERENCES categories(id),
+    CONSTRAINT chk_category_depth CHECK (depth >= 1 AND depth <= 4),
+    CONSTRAINT uq_category_parent_name UNIQUE (parent_id, name)
+);
+
+CREATE TABLE attribute_specs (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(120) NOT NULL,
+    data_type VARCHAR(40) NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT uq_attribute_spec_name UNIQUE (name)
+);
+
+CREATE TABLE products (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    merchant_user_id BIGINT NOT NULL,
+    product_code VARCHAR(120) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    brand_id BIGINT NOT NULL,
+    category_id BIGINT NOT NULL,
+    listed BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    CONSTRAINT fk_product_merchant FOREIGN KEY (merchant_user_id) REFERENCES users(id),
+    CONSTRAINT fk_product_brand FOREIGN KEY (brand_id) REFERENCES brands(id),
+    CONSTRAINT fk_product_category FOREIGN KEY (category_id) REFERENCES categories(id),
+    CONSTRAINT uq_product_code UNIQUE (product_code)
+);
+
+CREATE TABLE product_skus (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    product_id BIGINT NOT NULL,
+    sku_barcode VARCHAR(120) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    stock_quantity BIGINT NOT NULL,
+    alert_threshold BIGINT,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    CONSTRAINT fk_sku_product FOREIGN KEY (product_id) REFERENCES products(id),
+    CONSTRAINT uq_sku_barcode UNIQUE (sku_barcode)
+);
+
+CREATE TABLE product_sku_attribute_specs (
+    sku_id BIGINT NOT NULL,
+    attribute_spec_id BIGINT NOT NULL,
+    PRIMARY KEY (sku_id, attribute_spec_id),
+    CONSTRAINT fk_sku_attr_sku FOREIGN KEY (sku_id) REFERENCES product_skus(id),
+    CONSTRAINT fk_sku_attr_attr FOREIGN KEY (attribute_spec_id) REFERENCES attribute_specs(id)
+);
+
+CREATE INDEX idx_product_merchant_listed ON products (merchant_user_id, listed, updated_at DESC);
+CREATE INDEX idx_product_category ON products (category_id);
+
+CREATE TABLE user_sensitive_profiles (
+    user_id BIGINT PRIMARY KEY,
+    phone_number_encrypted TEXT,
+    id_number_encrypted TEXT,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    CONSTRAINT fk_sensitive_profile_user FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+ALTER TABLE im_messages
+    ADD COLUMN archived_at DATETIME(6) NULL;
+
+CREATE INDEX idx_im_msg_status_created ON im_messages (status, created_at);

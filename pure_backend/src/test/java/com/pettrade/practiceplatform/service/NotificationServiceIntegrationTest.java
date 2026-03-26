@@ -28,6 +28,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -77,7 +78,7 @@ class NotificationServiceIntegrationTest {
                 .thenReturn(List.of(sub));
 
         service.publish(NotificationEventType.PRACTICE_STEP_COMPLETED, Map.of("stepId", 99), actor);
-        verify(deliveryRepository).saveAll(any());
+        verify(deliveryRepository).saveAll(org.mockito.ArgumentMatchers.<NotificationDelivery>anyList());
 
         when(deliveryRepository.findByRecipientIdOrderByDeliveredAtDesc(20L)).thenReturn(List.of(delivery(event, recipient, null)));
         List<NotificationDeliveryView> list = service.listForUser(recipient, false);
@@ -102,6 +103,47 @@ class NotificationServiceIntegrationTest {
 
         NotificationDeliveryView view = service.markRead(100L, recipient);
         assertNotNull(view.readAt());
+    }
+
+    @Test
+    void publishOrderStatusUpdateCreatesDeliveryWithTimestamps() {
+        User actor = user(30L, "order-actor");
+        User recipient = user(40L, "order-recipient");
+
+        NotificationEvent event = new NotificationEvent();
+        ReflectionTestUtils.setField(event, "id", 3L);
+        event.setEventType(NotificationEventType.ORDER_STATUS_UPDATED);
+        event.setPayloadJson("{\"orderId\":123,\"status\":\"SHIPPED\"}");
+        event.setActorUser(actor);
+
+        when(eventRepository.save(any(NotificationEvent.class))).thenReturn(event);
+
+        service.publishOrderStatusUpdate(123L, "SHIPPED", actor, List.of(recipient));
+        verify(deliveryRepository).saveAll(org.mockito.ArgumentMatchers.<NotificationDelivery>anyList());
+
+        when(deliveryRepository.findByRecipientIdAndReadAtIsNullOrderByDeliveredAtDesc(40L))
+                .thenReturn(List.of(delivery(event, recipient, null)));
+
+        NotificationDeliveryView unread = service.listForUser(recipient, true).get(0);
+        assertEquals("ORDER_STATUS_UPDATED", unread.eventType());
+        assertNotNull(unread.deliveredAt());
+        assertNull(unread.readAt());
+    }
+
+    @Test
+    void listAllSubscriptionsIncludesNewEventTypesDisabledByDefault() {
+        User user = user(50L, "sub-user");
+
+        when(subscriptionRepository.findByUserIdAndEventType(eq(50L), any(NotificationEventType.class)))
+                .thenReturn(Optional.empty());
+
+        List<String> eventTypes = service.listAllSubscriptions(user).stream()
+                .map(v -> v.eventType())
+                .toList();
+
+        assertEquals(true, eventTypes.contains("REVIEW_RESULT_PUBLISHED"));
+        assertEquals(true, eventTypes.contains("REPORT_HANDLING_UPDATED"));
+        assertEquals(true, eventTypes.contains("ORDER_STATUS_UPDATED"));
     }
 
     private NotificationDelivery delivery(NotificationEvent event, User recipient, LocalDateTime readAt) {

@@ -16,10 +16,12 @@ import org.springframework.test.context.ActiveProfiles;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
 @ActiveProfiles("test")
@@ -73,6 +75,33 @@ class NotificationServiceDataIntegrationTest {
         var updated = service.markRead(deliveries.get(0).deliveryId(), recipient);
 
         assertNotNull(updated.readAt());
+    }
+
+    @Test
+    void reportHandlingEventMaintainsDeliveryAndUnreadTimestamps() {
+        User actor = createUser("actor3");
+        User recipient = createUser("recipient3");
+
+        service.upsertSubscription(recipient, NotificationEventType.REPORT_HANDLING_UPDATED, true);
+        service.publish(NotificationEventType.REPORT_HANDLING_UPDATED, Map.of("action", "EXPORT_XLSX"), actor);
+
+        var deliveries = service.listForUser(recipient, false);
+        assertTrue(deliveries.stream().anyMatch(d -> "REPORT_HANDLING_UPDATED".equals(d.eventType())));
+        var event = deliveries.stream().filter(d -> "REPORT_HANDLING_UPDATED".equals(d.eventType())).findFirst().orElseThrow();
+        assertNotNull(event.deliveredAt());
+        assertNull(event.readAt());
+    }
+
+    @Test
+    void allSubscriptionsIncludeNewBusinessEventTypes() {
+        User user = createUser("recipient4");
+        List<String> eventTypes = service.listAllSubscriptions(user).stream()
+                .map(s -> s.eventType())
+                .toList();
+
+        assertTrue(eventTypes.contains("ORDER_STATUS_UPDATED"));
+        assertTrue(eventTypes.contains("REVIEW_RESULT_PUBLISHED"));
+        assertTrue(eventTypes.contains("REPORT_HANDLING_UPDATED"));
     }
 
     private User createUser(String username) {

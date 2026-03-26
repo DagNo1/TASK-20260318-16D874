@@ -2,6 +2,7 @@ package com.pettrade.practiceplatform.service;
 
 import com.pettrade.practiceplatform.api.im.RecallMessageRequest;
 import com.pettrade.practiceplatform.api.im.SendMessageRequest;
+import com.pettrade.practiceplatform.domain.ImSessionMember;
 import com.pettrade.practiceplatform.domain.ImMessage;
 import com.pettrade.practiceplatform.domain.ImSession;
 import com.pettrade.practiceplatform.domain.Role;
@@ -30,6 +31,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -139,6 +141,46 @@ class ImMessagingServiceTest {
         var event = service.recallMessage(77L, new RecallMessageRequest(889L), admin);
         assertEquals("IM_MESSAGE_RECALLED", event.eventType());
         assertEquals(ImMessageStatus.RECALLED, msg.getStatus());
+    }
+
+    @Test
+    void establishSessionCountsOnlySentMessagesNotArchived() {
+        User actor = user(22L, "reader", false);
+        ImSession session = session(900L, actor);
+
+        ImSessionMember member = new ImSessionMember();
+        member.setSession(session);
+        member.setUser(actor);
+
+        when(sessionMemberRepository.findBySessionIdAndUserId(900L, 22L)).thenReturn(Optional.of(member));
+        when(messageRepository.countBySessionIdAndStatus(900L, ImMessageStatus.SENT)).thenReturn(3L);
+
+        var established = service.establishSession(900L, actor);
+        assertEquals(3L, established.unreadCount());
+        assertTrue(established.unreadCount() >= 0);
+    }
+
+    @Test
+    void establishSessionAfterLastReadStillCountsOnlySentMessages() {
+        User actor = user(23L, "reader2", false);
+        ImSession session = session(901L, actor);
+
+        ImMessage lastRead = new ImMessage();
+        ReflectionTestUtils.setField(lastRead, "id", 1000L);
+        lastRead.setSession(session);
+        lastRead.setSender(actor);
+        lastRead.setStatus(ImMessageStatus.SENT);
+
+        ImSessionMember member = new ImSessionMember();
+        member.setSession(session);
+        member.setUser(actor);
+        member.setLastReadMessage(lastRead);
+
+        when(sessionMemberRepository.findBySessionIdAndUserId(901L, 23L)).thenReturn(Optional.of(member));
+        when(messageRepository.countBySessionIdAndIdGreaterThanAndStatus(901L, 1000L, ImMessageStatus.SENT)).thenReturn(1L);
+
+        var established = service.establishSession(901L, actor);
+        assertEquals(1L, established.unreadCount());
     }
 
     private ImSession session(Long id, User creator) {

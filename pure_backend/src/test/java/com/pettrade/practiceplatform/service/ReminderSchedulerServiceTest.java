@@ -86,6 +86,8 @@ class ReminderSchedulerServiceTest {
 
         service.triggerDueReminders();
 
-        verify(messagingTemplate, atLeastOnce()).convertAndSend(org.mockito.ArgumentMatchers.eq("/topic/sessions/9/reminders"), org.mockito.ArgumentMatchers.any());
+        verify(messagingTemplate, atLeastOnce()).convertAndSend(
+                org.mockito.ArgumentMatchers.eq("/topic/sessions/9/reminders"),
+                org.mockito.ArgumentMatchers.any(Object.class));
     }
 }

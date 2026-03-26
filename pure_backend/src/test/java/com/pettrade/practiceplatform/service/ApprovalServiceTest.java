@@ -12,6 +12,7 @@ import com.pettrade.practiceplatform.exception.BusinessRuleException;
 import com.pettrade.practiceplatform.repository.ApprovalDecisionRepository;
 import com.pettrade.practiceplatform.repository.ApprovalRequestRepository;
 import com.pettrade.practiceplatform.repository.AuditLogRepository;
+import com.pettrade.practiceplatform.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +43,8 @@ class ApprovalServiceTest {
     private ApprovalDecisionRepository decisionRepository;
     @Mock
     private AuditLogRepository auditLogRepository;
+    @Mock
+    private NotificationService notificationService;
 
     private ApprovalService service;
 
@@ -52,6 +55,7 @@ class ApprovalServiceTest {
                 requestRepository,
                 decisionRepository,
                 auditLogRepository,
+                notificationService,
                 new ObjectMapper(),
                 clock
         );

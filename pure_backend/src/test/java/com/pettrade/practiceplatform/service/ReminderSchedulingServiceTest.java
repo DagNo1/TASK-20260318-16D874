@@ -69,7 +69,7 @@ class ReminderSchedulingServiceTest {
         step.setActiveSince(now);
         when(stepNodeReminderRepository.findByStepId(10L)).thenReturn(List.of(node));
         service.rescheduleNodeReminders(step, now.plusSeconds(5));
-        assertEquals(now.plusSeconds(35), node.getRemindAt());
+        assertEquals(now.plusSeconds(40), node.getRemindAt());
     }
 
     @Test

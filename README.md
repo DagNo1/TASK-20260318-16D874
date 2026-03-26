@@ -28,14 +28,22 @@ From your host machine:
 
 1. Confirm the server is running by opening Swagger UI:
    - `http://localhost:8080/swagger-ui.html`
+2. Run the test suite in Docker:
+   ```bash
+   docker run --rm --platform=linux/arm64 -v "C:\Users\dagim\Projects\Eagle Point AI\TASK-20260318-16D874\pure_backend:/workspace" -w /workspace maven:3.9.8-eclipse-temurin-17 mvn test
+   ```
+   - Expected result: `BUILD SUCCESS`
 2. Verify the anonymous login endpoint:
    - `POST /api/auth/login`
    - Seeded username: `admin`
    - Seeded password: `password`
-   - Seed data source: `pure_backend/src/main/resources/db/migration/V2__seed_auth_data.sql`
+   - Seed data source: `pure_backend/src/main/resources/db/migration/V1__init_schema.sql`
 3. After login, call any authenticated endpoint using:
    - Header: `Authorization: Bearer <accessToken>`
 4. Quick endpoint checks (once you have a JWT):
+   - Products: `POST /api/merchant/products`
+   - Product export: `GET /api/merchant/products/export`
+   - Sensitive profile: `POST /api/profile/sensitive`
    - Cooking Timer (practice sessions): `POST /api/practice/sessions`
    - Cooking Timer (step timers): `POST /api/practice/sessions/{sessionId}/timers/{timerId}/command`
    - Cooking Timer (checkpoint load): `GET /api/practice/sessions/{sessionId}/checkpoints/latest`
@@ -46,6 +54,15 @@ WebSocket (STOMP):
 - Connect to: `ws://localhost:8080/ws`
 - Send/subscribe topics depend on your client flow; example message mappings exist under:
   - `com.pettrade.practiceplatform.api.im.ImWebSocketController`
+
+## Operational Notes
+
+- Backup and recovery runbook: `pure_backend/ops/backup/README.md`
+- Backup scripts:
+  - `pure_backend/ops/backup/backup_full_daily.sh`
+  - `pure_backend/ops/backup/backup_incremental_hourly.sh`
+- Sensitive profile data is stored encrypted and returned/logged in masked form via the sensitive profile service flow.
+- TLS support is available through the `tls` Spring profile and requires the keystore environment variables referenced in `pure_backend/src/main/resources/application.yml`.
 
 ## Project Structure (`pure_backend/`)
 
@@ -63,6 +80,6 @@ The backend code is organized as a standard layered Spring Boot monolith:
   - `websocket/`: WebSocket/STOMP specific helpers (if applicable)
   - `exception/`: application exceptions
 - `pure_backend/src/main/resources/application.yml`: application configuration (server port, JWT settings, Flyway settings)
-- `pure_backend/src/main/resources/db/migration/`: Flyway migrations (schema + seed data such as `V2__seed_auth_data.sql`)
+- `pure_backend/src/main/resources/db/migration/`: Flyway migrations (schema initialization and seeded auth data in `V1__init_schema.sql`)
 - `pure_backend/src/test/java/`: unit/integration tests for the core business logic
-
+- `pure_backend/ops/backup/`: backup scripts and restore runbook
