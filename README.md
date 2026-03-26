@@ -30,7 +30,7 @@ From your host machine:
    - `http://localhost:8080/swagger-ui.html`
 2. Run the test suite in Docker:
    ```bash
-   docker run --rm --platform=linux/arm64 -v "C:\Users\dagim\Projects\Eagle Point AI\TASK-20260318-16D874\pure_backend:/workspace" -w /workspace maven:3.9.8-eclipse-temurin-17 mvn test
+   docker run --rm --platform=linux/arm64 -v "${PWD}:/workspace" -w /workspace maven:3.9.8-eclipse-temurin-17 mvn test
    ```
    - Expected result: `BUILD SUCCESS`
 2. Verify the anonymous login endpoint:
