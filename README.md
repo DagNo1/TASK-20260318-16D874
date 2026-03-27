@@ -2,6 +2,11 @@
 
 Spring Boot 3 monolith backend (Java 17) for the “Pet Supplies Trading and Cooking Practice Management Platform”.
 
+## Documentation
+
+- Design document: `docs/design.md`
+- API specification: `docs/api-spec.md`
+
 ## Start Command (How to Run)
 
 1. Open a terminal in `pure_backend/`
@@ -18,7 +23,6 @@ From your host machine:
 
 - Backend API: `http://localhost:8080`
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
-- OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 - MySQL (optional, for debugging): `localhost:3306`
   - DB: `practice_platform`
   - User: `app`
@@ -33,14 +37,18 @@ From your host machine:
    docker run --rm --platform=linux/arm64 -v "${PWD}:/workspace" -w /workspace maven:3.9.8-eclipse-temurin-17 mvn test
    ```
    - Expected result: `BUILD SUCCESS`
-2. Verify the anonymous login endpoint:
+3. Verify the login endpoint:
    - `POST /api/auth/login`
-   - Seeded username: `admin`
-   - Seeded password: `password`
-   - Seed data source: `pure_backend/src/main/resources/db/migration/V1__init_schema.sql`
-3. After login, call any authenticated endpoint using:
+   - Seeded demo users in `pure_backend/src/main/resources/db/migration/V1__init_schema.sql`:
+     - `platform_admin`
+     - `merchant_operator`
+     - `regular_buyer`
+     - `reviewer`
+   - Seed comment documents password `password` for all demo users
+   - If login fails in your local environment, verify your seeded auth data matches the current password policy
+4. After login, call any authenticated endpoint using:
    - Header: `Authorization: Bearer <accessToken>`
-4. Quick endpoint checks (once you have a JWT):
+5. Quick endpoint checks (once you have a JWT):
    - Products: `POST /api/merchant/products`
    - Product export: `GET /api/merchant/products/export`
    - Sensitive profile: `POST /api/profile/sensitive`
@@ -63,6 +71,7 @@ WebSocket (STOMP):
   - `pure_backend/ops/backup/backup_incremental_hourly.sh`
 - Sensitive profile data is stored encrypted and returned/logged in masked form via the sensitive profile service flow.
 - TLS support is available through the `tls` Spring profile and requires the keystore environment variables referenced in `pure_backend/src/main/resources/application.yml`.
+- The main API surface and example payloads are documented in `docs/api-spec.md`.
 
 ## Project Structure (`pure_backend/`)
 

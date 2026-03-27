@@ -32,6 +32,7 @@ services:
       DB_USER: app
       DB_PASSWORD: app123
       JWT_SECRET: change-me-change-me-change-me-change-me-change-me-change-me
+      APP_ENCRYPTION_KEY_BASE64: ${APP_ENCRYPTION_KEY_BASE64:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
     ports:
       - "8080:8080"
     depends_on:
